@@ -85,10 +85,10 @@ async def create_album(payload: AlbumCreate, session: AsyncSession = Depends(get
         return ResponseService.created(data=album_data)
     except IntegrityError as e:
         await session.rollback()
-        return ResponseService.internal_error("数据完整性错误", DB_CREATE)
+        return ResponseService.db_error("数据完整性错误", DB_CREATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.internal_error("创建专辑失败", DB_CREATE)
+        return ResponseService.db_error("创建专辑失败", DB_CREATE)
     except Exception as e:
         await session.rollback()
         raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "创建专辑时发生未知错误"})
@@ -186,10 +186,10 @@ async def update_album(album_id: int, payload: AlbumUpdate, session: AsyncSessio
         raise
     except IntegrityError as e:
         await session.rollback()
-        return ResponseService.internal_error("数据完整性错误", DB_UPDATE)
+        return ResponseService.db_error("数据完整性错误", DB_UPDATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.internal_error("更新专辑失败", DB_UPDATE)
+        return ResponseService.db_error("更新专辑失败", DB_UPDATE)
     except Exception as e:
         await session.rollback()
         raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "更新专辑时发生未知错误"})
@@ -213,7 +213,7 @@ async def delete_album(album_id: int, session: AsyncSession = Depends(get_sessio
         raise
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.internal_error("删除专辑失败", DB_DELETE)
+        return ResponseService.db_error("删除专辑失败", DB_DELETE)
     except Exception as e:
         await session.rollback()
         raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "删除专辑时发生未知错误"})

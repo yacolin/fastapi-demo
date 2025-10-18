@@ -105,7 +105,7 @@ async def login(payload: LoginInput, session: AsyncSession = Depends(get_session
     except SQLAlchemyError as e:
         import traceback
         traceback.print_exc()
-        return ResponseService.internal_error("登录时发生数据库错误", ERR_INTERNAL)
+        return ResponseService.db_error("登录时发生数据库错误", ERR_INTERNAL)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -128,7 +128,7 @@ async def register(payload: RegisterInput, session: AsyncSession = Depends(get_s
         try:
             hashed_password = AuthService.hash_password(payload.password)
         except Exception as e:
-            return ResponseService.internal_error("密码加密失败", DB_CREATE)
+            return ResponseService.db_error("密码加密失败", DB_CREATE)
         
         # Create new user
         user = User(
@@ -149,7 +149,7 @@ async def register(payload: RegisterInput, session: AsyncSession = Depends(get_s
         await session.rollback()
         import traceback
         traceback.print_exc()
-        return ResponseService.internal_error("注册失败", DB_CREATE)
+        return ResponseService.db_error("注册失败", DB_CREATE)
     except Exception as e:
         await session.rollback()
         import traceback

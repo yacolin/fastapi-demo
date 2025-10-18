@@ -2,14 +2,22 @@
 Authentication Service
 Encapsulates authentication-related functionality into a service class
 """
+import os
+from datetime import datetime, timedelta
 from typing import Optional
-from .jwt_utils import (
-    hash_password as _hash_password,
-    check_password_hash as _check_password_hash,
-    generate_access_token as _generate_access_token,
-    generate_refresh_token as _generate_refresh_token,
-    decode_token as _decode_token,
-)
+
+
+from jose import JWTError, jwt
+import bcrypt
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# JWT configuration
+JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-this-in-production")
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 15  # 15 minutes
+REFRESH_TOKEN_EXPIRE_DAYS = 7     # 7 days
 
 
 class AuthService:
@@ -29,7 +37,13 @@ class AuthService:
         Returns:
             Hashed password
         """
-        return _hash_password(password)
+        # Bcrypt has a 72-byte limit, truncate if necessary
+        password_bytes = password.encode('utf-8')[:72]
+        # Generate salt and hash password
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(password_bytes, salt)
+        # Return as string for database storage
+        return hashed.decode('utf-8')
     
     @staticmethod
     def verify_password(password: str, hashed: str) -> bool:
@@ -43,7 +57,10 @@ class AuthService:
         Returns:
             True if password matches, False otherwise
         """
-        return _check_password_hash(password, hashed)
+        # Bcrypt has a 72-byte limit, truncate if necessary to match hashing
+        password_bytes = password.encode('utf-8')[:72]
+        hashed_bytes = hashed.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
     
     @staticmethod
     def create_access_token(user_id: int) -> str:
@@ -56,7 +73,13 @@ class AuthService:
         Returns:
             JWT access token (15 minutes expiry)
         """
-        return _generate_access_token(user_id)
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        claims = {
+            "user_id": user_id,
+            "exp": expire,
+        }
+        token = jwt.encode(claims, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        return token
     
     @staticmethod
     def create_refresh_token(user_id: int) -> str:
@@ -69,7 +92,13 @@ class AuthService:
         Returns:
             JWT refresh token (7 days expiry)
         """
-        return _generate_refresh_token(user_id)
+        expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        claims = {
+            "user_id": user_id,
+            "exp": expire,
+        }
+        token = jwt.encode(claims, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        return token
     
     @staticmethod
     def validate_token(token: str) -> Optional[dict]:
@@ -82,7 +111,11 @@ class AuthService:
         Returns:
             Decoded claims if valid, None otherwise
         """
-        return _decode_token(token)
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            return payload
+        except JWTError:
+            return None
     
     @staticmethod
     def create_token_pair(user_id: int) -> dict:
@@ -96,6 +129,6 @@ class AuthService:
             Dictionary with access_token and refresh_token
         """
         return {
-            "access_token": _generate_access_token(user_id),
-            "refresh_token": _generate_refresh_token(user_id)
+            "access_token": AuthService.create_access_token(user_id),
+            "refresh_token": AuthService.create_refresh_token(user_id)
         }

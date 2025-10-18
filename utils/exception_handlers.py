@@ -11,8 +11,8 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
-from .restful import BusinessError, not_found
-from .biz_code import NOT_FOUND
+from .response_service import ResponseService
+from .restful import BusinessError
 
 logger = logging.getLogger("app")
 
@@ -75,7 +75,6 @@ def register_exception_handlers(app):
     async def not_found_handler(request: Request, exc: HTTPException):
         """Handle 404 Not Found errors with standardized response"""
         logger.warning("Route not found: %s %s", request.method, request.url.path)
-        return not_found(
-            biz_code=NOT_FOUND,
+        return ResponseService.not_found(
             errors={"message": f"路由 {request.url.path} 不存在", "path": request.url.path}
         )

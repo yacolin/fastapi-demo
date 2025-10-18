@@ -144,60 +144,6 @@ def error_response(
     )
 
 
-def created(data: Optional[Any] = None) -> JSONResponse:
-    """创建成功响应 (201)"""
-    return success(biz_code=2001, data=data, http_status=201)
-
-
-def no_content() -> JSONResponse:
-    """无内容响应 (204)"""
-    return success(biz_code=2002, data=None, http_status=204)
-
-
-def accepted(data: Optional[Any] = None) -> JSONResponse:
-    """已接受响应 (202)"""
-    return success(biz_code=2003, data=data, http_status=202)
-
-
-def deleted() -> JSONResponse:
-    """删除成功响应 (204)"""
-    return success(biz_code=2004, data=None, http_status=204)
-
-
-def updated(data: Optional[Any] = None) -> JSONResponse:
-    """更新成功响应 (200)"""
-    return success(biz_code=2005, data=data, http_status=200)
-
-
-def bad_request(errors: Optional[Any] = None, biz_code: int = 4000) -> JSONResponse:
-    """错误请求响应 (400)"""
-    return error_response(http_status=400, biz_code=biz_code, errors=errors)
-
-
-def unauthorized(errors: Optional[Any] = None, biz_code: int = 4001) -> JSONResponse:
-    """未授权响应 (401)"""
-    return error_response(http_status=401, biz_code=biz_code, errors=errors)
-
-
-def forbidden(errors: Optional[Any] = None, biz_code: int = 4003) -> JSONResponse:
-    """禁止访问响应 (403)"""
-    return error_response(http_status=403, biz_code=biz_code, errors=errors)
-
-
-def not_found(errors: Optional[Any] = None, biz_code: int = 4004) -> JSONResponse:
-    """未找到响应 (404)"""
-    return error_response(http_status=404, biz_code=biz_code, errors=errors)
-
-
-def internal_error(errors: Optional[Any] = None, biz_code: int = 5000) -> JSONResponse:
-    """服务器内部错误响应 (500)"""
-    return error_response(http_status=500, biz_code=biz_code, errors=errors)
-
-
-def db_error(errors: Optional[Any] = None, biz_code: int = 5100) -> JSONResponse:
-    """数据库错误响应 (500)"""
-    return error_response(http_status=500, biz_code=biz_code, errors=errors)
-
 
 # 业务错误工厂函数
 def new_business_error(

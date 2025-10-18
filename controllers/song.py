@@ -93,10 +93,10 @@ async def create_song(payload: SongCreate, session: AsyncSession = Depends(get_s
         # Foreign key constraint violation
         if "foreign key constraint" in str(e).lower() or "cannot add or update a child row" in str(e).lower():
             return ResponseService.bad_request(f"ID为{payload.album_id}的专辑不存在")
-        return ResponseService.internal_error("数据完整性错误", DB_CREATE)
+        return ResponseService.db_error("数据完整性错误", DB_CREATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.internal_error("创建歌曲失败", DB_CREATE)
+        return ResponseService.db_error("创建歌曲失败", DB_CREATE)
     except Exception as e:
         await session.rollback()
         raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "创建歌曲时发生未知错误"})
@@ -226,10 +226,10 @@ async def update_song(song_id: int, payload: SongUpdate, session: AsyncSession =
         await session.rollback()
         if "foreign key constraint" in str(e).lower():
             return ResponseService.bad_request(f"ID为{payload.album_id}的专辑不存在")
-        return ResponseService.internal_error("数据完整性错误", DB_UPDATE)
+        return ResponseService.db_error("数据完整性错误", DB_UPDATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.internal_error("更新歌曲失败", DB_UPDATE)
+        return ResponseService.db_error("更新歌曲失败", DB_UPDATE)
     except Exception as e:
         await session.rollback()
         raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "更新歌曲时发生未知错误"})
@@ -253,7 +253,7 @@ async def delete_song(song_id: int, session: AsyncSession = Depends(get_session)
         raise
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.internal_error("删除歌曲失败", DB_DELETE)
+        return ResponseService.db_error("删除歌曲失败", DB_DELETE)
     except Exception as e:
         await session.rollback()
         raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "删除歌曲时发生未知错误"})

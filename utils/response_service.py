@@ -8,13 +8,7 @@ from fastapi.responses import JSONResponse
 
 from .restful import (
     success as _success,
-    unauthorized as _unauthorized,
-    bad_request as _bad_request,
-    internal_error as _internal_error,
-    created as _created,
-    updated as _updated,
-    deleted as _deleted,
-    not_found as _not_found,
+    error_response as _error_response,
     BusinessError,
 )
 from .biz_code import (
@@ -63,7 +57,34 @@ class ResponseService:
         Returns:
             JSONResponse with created format
         """
-        return _created(data=data)
+        return _success(biz_code=biz_code, data=data, http_status=201)
+
+    @staticmethod
+    def no_content(biz_code: int = DELETED) -> JSONResponse:
+        """
+        Return a no content response (204)
+        
+        Args:
+            biz_code: Business status code (default: DELETED=2004)
+            
+        Returns:
+            JSONResponse with no content format
+        """
+        return _success(biz_code=biz_code, data=None, http_status=204)
+    
+    @staticmethod
+    def accepted(data: Optional[Any] = None, biz_code: int = OK) -> JSONResponse:
+        """
+        Return an accepted response (202)
+        
+        Args:
+            data: Response data
+            biz_code: Business status code (default: OK=2000)
+            
+        Returns:
+            JSONResponse with accepted format
+        """
+        return _success(biz_code=biz_code, data=data, http_status=202)
     
     @staticmethod
     def updated(data: Optional[Any] = None, biz_code: int = UPDATED) -> JSONResponse:
@@ -77,7 +98,7 @@ class ResponseService:
         Returns:
             JSONResponse with updated format
         """
-        return _updated(data=data)
+        return _success(biz_code=biz_code, data=data, http_status=200)
     
     @staticmethod
     def deleted(biz_code: int = DELETED) -> JSONResponse:
@@ -90,7 +111,7 @@ class ResponseService:
         Returns:
             JSONResponse with deleted format
         """
-        return _deleted()
+        return _success(biz_code=biz_code, data=None, http_status=204)
     
     @staticmethod
     def bad_request(message: str, biz_code: int = BAD_REQUEST) -> JSONResponse:
@@ -104,7 +125,7 @@ class ResponseService:
         Returns:
             JSONResponse with error format
         """
-        return _bad_request(biz_code=biz_code, errors={"message": message})
+        return _error_response(http_status=400, biz_code=biz_code, errors={"message": message})
     
     @staticmethod
     def unauthorized(message: str, biz_code: int = UNAUTHORIZED) -> JSONResponse:
@@ -118,7 +139,23 @@ class ResponseService:
         Returns:
             JSONResponse with error format
         """
-        return _unauthorized(biz_code=biz_code, errors={"message": message})
+        return _error_response(http_status=401, biz_code=biz_code, errors={"message": message})
+    
+
+    @staticmethod
+    def forbidden(message: str, biz_code: int = UNAUTHORIZED + 2) -> JSONResponse:
+        """
+        Return a forbidden error response (403)
+        
+        Args:
+            message: Error message
+            biz_code: Business error code (default: FORBIDDEN=4003)
+            
+        Returns:
+            JSONResponse with error format
+        """
+        return _error_response(http_status=403, biz_code=biz_code, errors={"message": message})
+    
     
     @staticmethod
     def not_found(message: str, biz_code: int = NOT_FOUND) -> JSONResponse:
@@ -132,7 +169,7 @@ class ResponseService:
         Returns:
             JSONResponse with error format
         """
-        return _not_found(biz_code=biz_code, errors={"message": message})
+        return _error_response(http_status=404, biz_code=biz_code, errors={"message": message})
     
     @staticmethod
     def internal_error(message: str, biz_code: int = ERR_INTERNAL) -> JSONResponse:
@@ -146,7 +183,21 @@ class ResponseService:
         Returns:
             JSONResponse with error format
         """
-        return _internal_error(biz_code=biz_code, errors={"message": message})
+        return _error_response(http_status=500, biz_code=biz_code, errors={"message": message}) 
+
+    @staticmethod
+    def db_error(message: str, biz_code: int = ERR_INTERNAL) -> JSONResponse:
+        """
+        Return a database error response (500)
+        
+        Args:
+            message: Error message
+            biz_code: Business error code (default: ERR_INTERNAL=5000)
+            
+        Returns:
+            JSONResponse with error format
+        """
+        return _error_response(http_status=500, biz_code=biz_code, errors={"message": message})
     
     # Expose BusinessError for raising exceptions
     Error = BusinessError

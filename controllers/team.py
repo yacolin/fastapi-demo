@@ -100,10 +100,10 @@ async def create_team(payload: TeamCreate, session: AsyncSession = Depends(get_s
         return ResponseService.created(data=team_data)
     except IntegrityError as e:
         await session.rollback()
-        return ResponseService.internal_error("数据完整性错误", DB_CREATE)
+        return ResponseService.db_error("数据完整性错误", DB_CREATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.internal_error("创建球队失败", DB_CREATE)
+        return ResponseService.db_error("创建球队失败", DB_CREATE)
     except Exception as e:
         await session.rollback()
         raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "创建球队时发生未知错误"})
@@ -227,10 +227,10 @@ async def update_team(team_id: int, payload: TeamUpdate, session: AsyncSession =
         raise
     except IntegrityError as e:
         await session.rollback()
-        return ResponseService.internal_error("数据完整性错误", DB_UPDATE)
+        return ResponseService.db_error("数据完整性错误", DB_UPDATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.internal_error("更新球队失败", DB_UPDATE)
+        return ResponseService.db_error("更新球队失败", DB_UPDATE)
     except Exception as e:
         await session.rollback()
         raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "更新球队时发生未知错误"})
@@ -254,7 +254,7 @@ async def delete_team(team_id: int, session: AsyncSession = Depends(get_session)
         raise
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.internal_error("删除球队失败", DB_DELETE)
+        return ResponseService.db_error("删除球队失败", DB_DELETE)
     except Exception as e:
         await session.rollback()
         raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "删除球队时发生未知错误"})

@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from configs import get_session
 from utils.restful import BusinessError
-from utils.biz_code import UNAUTHORIZED, TK_NOT_FOUND, TK_FORMAT, TK_INVALID, TK_CLAIMS, TK_USER_ID, NOT_FOUND
-from utils.jwt_utils import decode_token
+from utils.biz_code import TK_NOT_FOUND, TK_FORMAT, TK_INVALID, TK_USER_ID, NOT_FOUND
+from utils import AuthService
 
 
 async def get_current_user(
@@ -51,7 +51,7 @@ async def get_current_user(
     token_str = parts[1]
     
     # Decode token
-    claims = decode_token(token_str)
+    claims = AuthService.decode_token(token_str)
     if not claims:
         raise BusinessError(
             biz_code=TK_INVALID,
