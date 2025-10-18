@@ -11,5 +11,9 @@ cryptography==46.0.3
 # Environment configuration
 python-dotenv==1.1.1
 
+# Authentication - JWT and password hashing
+python-jose[cryptography]==3.3.0
+bcrypt==4.1.2
+
 # Optional: Form/file upload support
 python-multipart==0.0.20

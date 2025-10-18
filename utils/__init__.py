@@ -69,13 +69,18 @@ from .restful import (
 
 from .exception_handlers import register_exception_handlers
 
+from .jwt_utils import (
+    hash_password,
+    check_password_hash,
+    generate_access_token,
+    generate_refresh_token,
+    decode_token,
+)
+
+from .auth_service import AuthService
+from .response_service import ResponseService
+
 __all__ = [
-    # Response models
-    "ResponseModel",
-    "BaseResponse",
-    "PaginatedResponse",
-    "ErrorResponse",
-    "EmptyResponse",
     # Business codes
     "OK",
     "CREATED",
@@ -135,4 +140,13 @@ __all__ = [
     "new_business_error",
     # Exception handlers
     "register_exception_handlers",
+    # JWT utilities
+    "hash_password",
+    "check_password_hash",
+    "generate_access_token",
+    "generate_refresh_token",
+    "decode_token",
+    # Service classes
+    "AuthService",
+    "ResponseService",
 ]
