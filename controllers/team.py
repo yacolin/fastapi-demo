@@ -9,8 +9,8 @@ from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from utils.restful import success, created, updated, deleted, not_found, db_error, BusinessError
-from utils.biz_code import NOT_FOUND, BAD_REQUEST as BIZ_BAD_REQUEST, DB_CREATE, DB_UPDATE, DB_DELETE, INVALID_PAGE
+from utils import ResponseService
+from utils.biz_code import NOT_FOUND, DB_CREATE, DB_UPDATE, DB_DELETE, INVALID_PAGE, ERR_INTERNAL
 from configs import get_session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -96,18 +96,17 @@ async def create_team(payload: TeamCreate, session: AsyncSession = Depends(get_s
         await session.commit()
         await session.refresh(team)
         
-        # Convert ORM object to Pydantic model and serialize properly
         team_data = TeamOut.from_orm(team).model_dump(mode='json')
-        return created(data=team_data)
+        return ResponseService.created(data=team_data)
     except IntegrityError as e:
         await session.rollback()
-        return db_error(biz_code=DB_CREATE, errors={"message": "数据完整性错误"})
+        return ResponseService.internal_error("数据完整性错误", DB_CREATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return db_error(biz_code=DB_CREATE, errors={"message": "创建球队失败"})
+        return ResponseService.internal_error("创建球队失败", DB_CREATE)
     except Exception as e:
         await session.rollback()
-        raise BusinessError(biz_code=5000, details={"message": "创建球队时发生未知错误"})
+        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "创建球队时发生未知错误"})
 
 
 @router.get("")
@@ -122,9 +121,9 @@ async def list_teams(
     """List all teams with optional filters"""
     try:
         if limit <= 0 or limit > 1000:
-            raise BusinessError(biz_code=INVALID_PAGE, details={"message": "Limit必须在1到1000之间"})
+            raise ResponseService.Error(biz_code=INVALID_PAGE, details={"message": "Limit必须在1到1000之间"})
         if offset < 0:
-            raise BusinessError(biz_code=INVALID_PAGE, details={"message": "Offset必须为非负数"})
+            raise ResponseService.Error(biz_code=INVALID_PAGE, details={"message": "Offset必须为非负数"})
         
         # Build base query for filtering
         base_stmt = select(Team)
@@ -151,19 +150,18 @@ async def list_teams(
         result = await session.execute(stmt)
         teams = result.scalars().all()
         
-        # Convert ORM objects to Pydantic models and serialize properly
         teams_data = [TeamOut.from_orm(team).model_dump(mode='json') for team in teams]
-        return success(data={"items": teams_data, "total": total})
-    except BusinessError:
+        return ResponseService.success(data={"items": teams_data, "total": total})
+    except ResponseService.Error:
         raise
     except SQLAlchemyError as e:
         import traceback
         traceback.print_exc()
-        return db_error(errors={"message": "查询球队列表失败"})
+        return ResponseService.internal_error("查询球队列表失败", ERR_INTERNAL)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise BusinessError(biz_code=5000, details={"message": "查询球队列表时发生未知错误"})
+        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "查询球队列表时发生未知错误"})
 
 
 @router.get("/{team_id}")
@@ -171,25 +169,24 @@ async def get_team(team_id: int, session: AsyncSession = Depends(get_session)):
     """Get a specific team by ID"""
     try:
         if team_id <= 0:
-            raise BusinessError(biz_code=BIZ_BAD_REQUEST, details={"message": "Invalid team_id: 必须为正数"})
+            return ResponseService.bad_request("Invalid team_id: 必须为正数")
         
         team = await session.get(Team, team_id)
         if not team:
-            return not_found(biz_code=NOT_FOUND, errors={"message": f"ID为{team_id}的球队不存在"})
+            return ResponseService.not_found(f"ID为{team_id}的球队不存在", NOT_FOUND)
         
-        # Convert ORM object to Pydantic model and serialize properly
         team_data = TeamOut.from_orm(team).model_dump(mode='json')
-        return success(data=team_data)
-    except BusinessError:
+        return ResponseService.success(data=team_data)
+    except ResponseService.Error:
         raise
     except SQLAlchemyError as e:
         import traceback
         traceback.print_exc()
-        return db_error(errors={"message": "查询球队失败"})
+        return ResponseService.internal_error("查询球队失败", ERR_INTERNAL)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise BusinessError(biz_code=5000, details={"message": "查询球队时发生未知错误"})
+        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "查询球队时发生未知错误"})
 
 
 @router.put("/{team_id}")
@@ -197,15 +194,15 @@ async def update_team(team_id: int, payload: TeamUpdate, session: AsyncSession =
     """Update a team by ID"""
     try:
         if team_id <= 0:
-            raise BusinessError(biz_code=BIZ_BAD_REQUEST, details={"message": "Invalid team_id: 必须为正数"})
+            return ResponseService.bad_request("Invalid team_id: 必须为正数")
         
         team = await session.get(Team, team_id)
         if not team:
-            return not_found(biz_code=NOT_FOUND, errors={"message": f"ID为{team_id}的球队不存在"})
+            return ResponseService.not_found(f"ID为{team_id}的球队不存在", NOT_FOUND)
 
         # Check if at least one field is provided
         if all(v is None for v in [payload.name, payload.city, payload.divide, payload.part, payload.champions, payload.logo]):
-            raise BusinessError(biz_code=BIZ_BAD_REQUEST, details={"message": "至少需要提供一个字段进行更新"})
+            return ResponseService.bad_request("至少需要提供一个字段进行更新")
 
         if payload.name is not None:
             team.name = payload.name
@@ -224,20 +221,19 @@ async def update_team(team_id: int, payload: TeamUpdate, session: AsyncSession =
         await session.commit()
         await session.refresh(team)
         
-        # Convert ORM object to Pydantic model and serialize properly
         team_data = TeamOut.from_orm(team).model_dump(mode='json')
-        return updated(data=team_data)
-    except BusinessError:
+        return ResponseService.updated(data=team_data)
+    except ResponseService.Error:
         raise
     except IntegrityError as e:
         await session.rollback()
-        return db_error(biz_code=DB_UPDATE, errors={"message": "数据完整性错误"})
+        return ResponseService.internal_error("数据完整性错误", DB_UPDATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return db_error(biz_code=DB_UPDATE, errors={"message": "更新球队失败"})
+        return ResponseService.internal_error("更新球队失败", DB_UPDATE)
     except Exception as e:
         await session.rollback()
-        raise BusinessError(biz_code=5000, details={"message": "更新球队时发生未知错误"})
+        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "更新球队时发生未知错误"})
 
 
 @router.delete("/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -245,20 +241,20 @@ async def delete_team(team_id: int, session: AsyncSession = Depends(get_session)
     """Delete a team by ID"""
     try:
         if team_id <= 0:
-            raise BusinessError(biz_code=BIZ_BAD_REQUEST, details={"message": "Invalid team_id: 必须为正数"})
+            return ResponseService.bad_request("Invalid team_id: 必须为正数")
         
         team = await session.get(Team, team_id)
         if not team:
-            return not_found(biz_code=NOT_FOUND, errors={"message": f"ID为{team_id}的球队不存在"})
+            return ResponseService.not_found(f"ID为{team_id}的球队不存在", NOT_FOUND)
         
         await session.delete(team)
         await session.commit()
-        return deleted()
-    except BusinessError:
+        return ResponseService.deleted()
+    except ResponseService.Error:
         raise
     except SQLAlchemyError as e:
         await session.rollback()
-        return db_error(biz_code=DB_DELETE, errors={"message": "删除球队失败"})
+        return ResponseService.internal_error("删除球队失败", DB_DELETE)
     except Exception as e:
         await session.rollback()
-        raise BusinessError(biz_code=5000, details={"message": "删除球队时发生未知错误"})
+        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "删除球队时发生未知错误"})

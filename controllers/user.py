@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from utils import AuthService, ResponseService
 from utils.biz_code import (
-    OK, BAD_REQUEST as BIZ_BAD_REQUEST,
     INVALID_PWD, USER_NOT_FOUND, DB_CREATE,
     ACCESS_TK_GEN, TK_INVALID, TK_USER_ID, ERR_INTERNAL
 )
@@ -99,7 +98,7 @@ async def login(payload: LoginInput, session: AsyncSession = Depends(get_session
         # Generate token pair
         try:
             tokens = AuthService.create_token_pair(user.id)
-            return ResponseService.success(data=tokens, biz_code=OK)
+            return ResponseService.success(data=tokens)
         except Exception as e:
             return ResponseService.internal_error("生成token失败", ACCESS_TK_GEN)
         
@@ -123,7 +122,7 @@ async def register(payload: RegisterInput, session: AsyncSession = Depends(get_s
         existing_user = result.scalar_one_or_none()
         
         if existing_user:
-            return ResponseService.bad_request("用户名已存在", BIZ_BAD_REQUEST)
+            return ResponseService.bad_request("用户名已存在")
         
         # Hash password
         try:
@@ -141,11 +140,11 @@ async def register(payload: RegisterInput, session: AsyncSession = Depends(get_s
         await session.commit()
         await session.refresh(user)
         
-        return ResponseService.success(biz_code=OK, data=None)
+        return ResponseService.success()
         
     except IntegrityError as e:
         await session.rollback()
-        return ResponseService.bad_request("用户名已存在", BIZ_BAD_REQUEST)
+        return ResponseService.bad_request("用户名已存在")
     except SQLAlchemyError as e:
         await session.rollback()
         import traceback
@@ -181,7 +180,7 @@ async def refresh(payload: RefreshInput, session: AsyncSession = Depends(get_ses
         # Generate new access token
         try:
             new_access_token = AuthService.create_access_token(user_id)
-            return ResponseService.success(data={"access_token": new_access_token}, biz_code=OK)
+            return ResponseService.success(data={"access_token": new_access_token})
         except Exception as e:
             return ResponseService.internal_error("生成新的access token失败", ACCESS_TK_GEN)
         
@@ -196,7 +195,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current authenticated user information - Requires JWT authentication"""
     try:
         user_data = UserOut.from_orm(current_user).model_dump(mode='json')
-        return ResponseService.success(data=user_data, biz_code=OK)
+        return ResponseService.success(data=user_data)
     except Exception as e:
         import traceback
         traceback.print_exc()
