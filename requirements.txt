@@ -1,0 +1,15 @@
+# Core FastAPI dependencies
+fastapi==0.119.0
+uvicorn[standard]==0.37.0
+pydantic==2.11.7
+
+# Database - SQLAlchemy with async MySQL support
+SQLAlchemy==2.0.44
+aiomysql==0.2.0
+cryptography==46.0.3
+
+# Environment configuration
+python-dotenv==1.1.1
+
+# Optional: Form/file upload support
+python-multipart==0.0.20
