@@ -9,7 +9,7 @@ from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from utils import ResponseService
-from utils.biz_code import NOT_FOUND, DB_CREATE, DB_UPDATE, DB_DELETE, INVALID_PAGE, ERR_INTERNAL
+from utils.biz_code import BizCode
 from configs.db import get_session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -85,13 +85,13 @@ async def create_album(payload: AlbumCreate, session: AsyncSession = Depends(get
         return ResponseService.created(data=album_data)
     except IntegrityError as e:
         await session.rollback()
-        return ResponseService.db_error("数据完整性错误", DB_CREATE)
+        return ResponseService.db_error("数据完整性错误", BizCode.DB_CREATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.db_error("创建专辑失败", DB_CREATE)
+        return ResponseService.db_error("创建专辑失败", BizCode.DB_CREATE)
     except Exception as e:
         await session.rollback()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "创建专辑时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "创建专辑时发生未知错误"})
 
 
 @router.get("")
@@ -99,9 +99,9 @@ async def list_albums(limit: int = 100, offset: int = 0, session: AsyncSession =
     """List all albums with pagination"""
     try:
         if limit <= 0 or limit > 1000:
-            raise ResponseService.Error(biz_code=INVALID_PAGE, details={"message": "Limit必须在1到1000之间"})
+            raise ResponseService.Error(biz_code=BizCode.INVALID_PAGE, details={"message": "Limit必须在1到1000之间"})
         if offset < 0:
-            raise ResponseService.Error(biz_code=INVALID_PAGE, details={"message": "Offset必须为非负数"})
+            raise ResponseService.Error(biz_code=BizCode.INVALID_PAGE, details={"message": "Offset必须为非负数"})
         
         # Get total count
         count_stmt = select(func.count()).select_from(Album)
@@ -120,11 +120,11 @@ async def list_albums(limit: int = 100, offset: int = 0, session: AsyncSession =
     except SQLAlchemyError as e:
         import traceback
         traceback.print_exc()
-        return ResponseService.internal_error("查询专辑列表失败", ERR_INTERNAL)
+        return ResponseService.internal_error("查询专辑列表失败", BizCode.ERR_INTERNAL)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "查询专辑列表时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "查询专辑列表时发生未知错误"})
 
 
 @router.get("/{album_id}")
@@ -136,7 +136,7 @@ async def get_album(album_id: int, session: AsyncSession = Depends(get_session))
         
         album = await session.get(Album, album_id)
         if not album:
-            return ResponseService.not_found(f"ID为{album_id}的专辑不存在", NOT_FOUND)
+            return ResponseService.not_found(f"ID为{album_id}的专辑不存在", BizCode.NOT_FOUND)
         
         album_data = AlbumOut.from_orm(album).model_dump(mode='json')
         return ResponseService.success(data=album_data)
@@ -145,11 +145,11 @@ async def get_album(album_id: int, session: AsyncSession = Depends(get_session))
     except SQLAlchemyError as e:
         import traceback
         traceback.print_exc()
-        return ResponseService.internal_error("查询专辑失败", ERR_INTERNAL)
+        return ResponseService.internal_error("查询专辑失败", BizCode.ERR_INTERNAL)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "查询专辑时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "查询专辑时发生未知错误"})
 
 
 @router.put("/{album_id}")
@@ -161,7 +161,7 @@ async def update_album(album_id: int, payload: AlbumUpdate, session: AsyncSessio
         
         album = await session.get(Album, album_id)
         if not album:
-            return ResponseService.not_found(f"ID为{album_id}的专辑不存在", NOT_FOUND)
+            return ResponseService.not_found(f"ID为{album_id}的专辑不存在", BizCode.NOT_FOUND)
 
         # Check if at least one field is provided
         if all(v is None for v in [payload.name, payload.author, payload.description, payload.liked]):
@@ -186,13 +186,13 @@ async def update_album(album_id: int, payload: AlbumUpdate, session: AsyncSessio
         raise
     except IntegrityError as e:
         await session.rollback()
-        return ResponseService.db_error("数据完整性错误", DB_UPDATE)
+        return ResponseService.db_error("数据完整性错误", BizCode.DB_UPDATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.db_error("更新专辑失败", DB_UPDATE)
+        return ResponseService.db_error("更新专辑失败", BizCode.DB_UPDATE)
     except Exception as e:
         await session.rollback()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "更新专辑时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "更新专辑时发生未知错误"})
 
 
 @router.delete("/{album_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -204,7 +204,7 @@ async def delete_album(album_id: int, session: AsyncSession = Depends(get_sessio
         
         album = await session.get(Album, album_id)
         if not album:
-            return ResponseService.not_found(f"ID为{album_id}的专辑不存在", NOT_FOUND)
+            return ResponseService.not_found(f"ID为{album_id}的专辑不存在", BizCode.NOT_FOUND)
         
         await session.delete(album)
         await session.commit()
@@ -213,7 +213,7 @@ async def delete_album(album_id: int, session: AsyncSession = Depends(get_sessio
         raise
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.db_error("删除专辑失败", DB_DELETE)
+        return ResponseService.db_error("删除专辑失败", BizCode.DB_DELETE)
     except Exception as e:
         await session.rollback()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "删除专辑时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "删除专辑时发生未知错误"})

@@ -10,7 +10,7 @@ from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from utils import ResponseService
-from utils.biz_code import NOT_FOUND, DB_CREATE, DB_UPDATE, DB_DELETE, ERR_INTERNAL
+from utils.biz_code import BizCode
 from configs.db import get_session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -93,13 +93,13 @@ async def create_song(payload: SongCreate, session: AsyncSession = Depends(get_s
         # Foreign key constraint violation
         if "foreign key constraint" in str(e).lower() or "cannot add or update a child row" in str(e).lower():
             return ResponseService.bad_request(f"ID为{payload.album_id}的专辑不存在")
-        return ResponseService.db_error("数据完整性错误", DB_CREATE)
+        return ResponseService.db_error("数据完整性错误", BizCode.DB_CREATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.db_error("创建歌曲失败", DB_CREATE)
+        return ResponseService.db_error("创建歌曲失败", BizCode.DB_CREATE)
     except Exception as e:
         await session.rollback()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "创建歌曲时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "创建歌曲时发生未知错误"})
 
 
 @router.get("")
@@ -133,11 +133,11 @@ async def list_songs(
     except SQLAlchemyError as e:
         import traceback
         traceback.print_exc()
-        return ResponseService.internal_error("查询歌曲列表失败", ERR_INTERNAL)
+        return ResponseService.internal_error("查询歌曲列表失败", BizCode.ERR_INTERNAL)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "查询歌曲列表时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "查询歌曲列表时发生未知错误"})
 
 
 @router.get("/album/{album_id}")
@@ -158,11 +158,11 @@ async def get_songs_by_album(album_id: int, session: AsyncSession = Depends(get_
     except SQLAlchemyError as e:
         import traceback
         traceback.print_exc()
-        return ResponseService.internal_error("查询专辑歌曲失败", ERR_INTERNAL)
+        return ResponseService.internal_error("查询专辑歌曲失败", BizCode.ERR_INTERNAL)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "查询专辑歌曲时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "查询专辑歌曲时发生未知错误"})
 
 
 @router.get("/{song_id}")
@@ -174,7 +174,7 @@ async def get_song(song_id: int, session: AsyncSession = Depends(get_session)):
         
         song = await session.get(Song, song_id)
         if not song:
-            return ResponseService.not_found(f"ID为{song_id}的歌曲不存在", NOT_FOUND)
+            return ResponseService.not_found(f"ID为{song_id}的歌曲不存在", BizCode.NOT_FOUND)
         
         song_data = SongOut.from_orm(song).model_dump(mode='json')
         return ResponseService.success(data=song_data)
@@ -183,11 +183,11 @@ async def get_song(song_id: int, session: AsyncSession = Depends(get_session)):
     except SQLAlchemyError as e:
         import traceback
         traceback.print_exc()
-        return ResponseService.internal_error("查询歌曲失败", ERR_INTERNAL)
+        return ResponseService.internal_error("查询歌曲失败", BizCode.ERR_INTERNAL)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "查询歌曲时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "查询歌曲时发生未知错误"})
 
 
 @router.put("/{song_id}")
@@ -199,7 +199,7 @@ async def update_song(song_id: int, payload: SongUpdate, session: AsyncSession =
         
         song = await session.get(Song, song_id)
         if not song:
-            return ResponseService.not_found(f"ID为{song_id}的歌曲不存在", NOT_FOUND)
+            return ResponseService.not_found(f"ID为{song_id}的歌曲不存在", BizCode.NOT_FOUND)
 
         # Check if at least one field is provided
         if all(v is None for v in [payload.album_id, payload.title, payload.duration, payload.track_number]):
@@ -226,13 +226,13 @@ async def update_song(song_id: int, payload: SongUpdate, session: AsyncSession =
         await session.rollback()
         if "foreign key constraint" in str(e).lower():
             return ResponseService.bad_request(f"ID为{payload.album_id}的专辑不存在")
-        return ResponseService.db_error("数据完整性错误", DB_UPDATE)
+        return ResponseService.db_error("数据完整性错误", BizCode.DB_UPDATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.db_error("更新歌曲失败", DB_UPDATE)
+        return ResponseService.db_error("更新歌曲失败", BizCode.DB_UPDATE)
     except Exception as e:
         await session.rollback()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "更新歌曲时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "更新歌曲时发生未知错误"})
 
 
 @router.delete("/{song_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -244,7 +244,7 @@ async def delete_song(song_id: int, session: AsyncSession = Depends(get_session)
         
         song = await session.get(Song, song_id)
         if not song:
-            return ResponseService.not_found(f"ID为{song_id}的歌曲不存在", NOT_FOUND)
+            return ResponseService.not_found(f"ID为{song_id}的歌曲不存在", BizCode.NOT_FOUND)
         
         await session.delete(song)
         await session.commit()
@@ -253,7 +253,7 @@ async def delete_song(song_id: int, session: AsyncSession = Depends(get_session)
         raise
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.db_error("删除歌曲失败", DB_DELETE)
+        return ResponseService.db_error("删除歌曲失败", BizCode.DB_DELETE)
     except Exception as e:
         await session.rollback()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "删除歌曲时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "删除歌曲时发生未知错误"})

@@ -10,7 +10,7 @@ from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from utils import ResponseService
-from utils.biz_code import NOT_FOUND, DB_CREATE, DB_UPDATE, DB_DELETE, INVALID_PAGE, ERR_INTERNAL
+from utils.biz_code import BizCode
 from configs import get_session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -100,13 +100,13 @@ async def create_team(payload: TeamCreate, session: AsyncSession = Depends(get_s
         return ResponseService.created(data=team_data)
     except IntegrityError as e:
         await session.rollback()
-        return ResponseService.db_error("数据完整性错误", DB_CREATE)
+        return ResponseService.db_error("数据完整性错误", BizCode.DB_CREATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.db_error("创建球队失败", DB_CREATE)
+        return ResponseService.db_error("创建球队失败", BizCode.DB_CREATE)
     except Exception as e:
         await session.rollback()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "创建球队时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "创建球队时发生未知错误"})
 
 
 @router.get("")
@@ -121,9 +121,9 @@ async def list_teams(
     """List all teams with optional filters"""
     try:
         if limit <= 0 or limit > 1000:
-            raise ResponseService.Error(biz_code=INVALID_PAGE, details={"message": "Limit必须在1到1000之间"})
+            raise ResponseService.Error(biz_code=BizCode.INVALID_PAGE, details={"message": "Limit必须在1到1000之间"})
         if offset < 0:
-            raise ResponseService.Error(biz_code=INVALID_PAGE, details={"message": "Offset必须为非负数"})
+            raise ResponseService.Error(biz_code=BizCode.INVALID_PAGE, details={"message": "Offset必须为非负数"})
         
         # Build base query for filtering
         base_stmt = select(Team)
@@ -157,11 +157,11 @@ async def list_teams(
     except SQLAlchemyError as e:
         import traceback
         traceback.print_exc()
-        return ResponseService.internal_error("查询球队列表失败", ERR_INTERNAL)
+        return ResponseService.internal_error("查询球队列表失败", BizCode.ERR_INTERNAL)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "查询球队列表时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "查询球队列表时发生未知错误"})
 
 
 @router.get("/{team_id}")
@@ -173,7 +173,7 @@ async def get_team(team_id: int, session: AsyncSession = Depends(get_session)):
         
         team = await session.get(Team, team_id)
         if not team:
-            return ResponseService.not_found(f"ID为{team_id}的球队不存在", NOT_FOUND)
+            return ResponseService.not_found(f"ID为{team_id}的球队不存在", BizCode.NOT_FOUND)
         
         team_data = TeamOut.from_orm(team).model_dump(mode='json')
         return ResponseService.success(data=team_data)
@@ -182,11 +182,11 @@ async def get_team(team_id: int, session: AsyncSession = Depends(get_session)):
     except SQLAlchemyError as e:
         import traceback
         traceback.print_exc()
-        return ResponseService.internal_error("查询球队失败", ERR_INTERNAL)
+        return ResponseService.internal_error("查询球队失败", BizCode.ERR_INTERNAL)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "查询球队时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "查询球队时发生未知错误"})
 
 
 @router.put("/{team_id}")
@@ -198,24 +198,15 @@ async def update_team(team_id: int, payload: TeamUpdate, session: AsyncSession =
         
         team = await session.get(Team, team_id)
         if not team:
-            return ResponseService.not_found(f"ID为{team_id}的球队不存在", NOT_FOUND)
+            return ResponseService.not_found(f"ID为{team_id}的球队不存在", BizCode.NOT_FOUND)
 
         # Check if at least one field is provided
-        if all(v is None for v in [payload.name, payload.city, payload.divide, payload.part, payload.champions, payload.logo]):
+        if not payload.model_dump(exclude_unset=True):
             return ResponseService.bad_request("至少需要提供一个字段进行更新")
 
-        if payload.name is not None:
-            team.name = payload.name
-        if payload.city is not None:
-            team.city = payload.city
-        if payload.divide is not None:
-            team.divide = payload.divide
-        if payload.part is not None:
-            team.part = payload.part
-        if payload.champions is not None:
-            team.champions = payload.champions
-        if payload.logo is not None:
-            team.logo = payload.logo
+        # Update the team with the provided payload (using the payload model)
+        for key, value in payload.model_dump(exclude_unset=True).items():
+            setattr(team, key, value)
 
         session.add(team)
         await session.commit()
@@ -227,13 +218,13 @@ async def update_team(team_id: int, payload: TeamUpdate, session: AsyncSession =
         raise
     except IntegrityError as e:
         await session.rollback()
-        return ResponseService.db_error("数据完整性错误", DB_UPDATE)
+        return ResponseService.db_error("数据完整性错误", BizCode.DB_UPDATE)
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.db_error("更新球队失败", DB_UPDATE)
+        return ResponseService.db_error("更新球队失败", BizCode.DB_UPDATE)
     except Exception as e:
         await session.rollback()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "更新球队时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "更新球队时发生未知错误"})
 
 
 @router.delete("/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -245,7 +236,7 @@ async def delete_team(team_id: int, session: AsyncSession = Depends(get_session)
         
         team = await session.get(Team, team_id)
         if not team:
-            return ResponseService.not_found(f"ID为{team_id}的球队不存在", NOT_FOUND)
+            return ResponseService.not_found(f"ID为{team_id}的球队不存在", BizCode.NOT_FOUND)
         
         await session.delete(team)
         await session.commit()
@@ -254,7 +245,7 @@ async def delete_team(team_id: int, session: AsyncSession = Depends(get_session)
         raise
     except SQLAlchemyError as e:
         await session.rollback()
-        return ResponseService.db_error("删除球队失败", DB_DELETE)
+        return ResponseService.db_error("删除球队失败", BizCode.DB_DELETE)
     except Exception as e:
         await session.rollback()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "删除球队时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "删除球队时发生未知错误"})

@@ -2,12 +2,12 @@
 RESTful API Response Utilities
 统一的RESTful响应工具
 """
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from datetime import datetime
 from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse
 
-from .biz_code import get_message, get_http_status
+from .biz_code import get_message, get_http_status, BizCode
 
 
 class ApiResponse(BaseModel):
@@ -28,7 +28,6 @@ class ApiResponse(BaseModel):
                 "timestamp": 1729260645
             }
         }
-        
 
 
 class BusinessError(Exception):
@@ -36,7 +35,7 @@ class BusinessError(Exception):
     
     def __init__(
         self,
-        biz_code: int,
+        biz_code: Union[int, BizCode],
         http_code: Optional[int] = None,
         details: Optional[Any] = None,
         error: Optional[Exception] = None
@@ -45,16 +44,17 @@ class BusinessError(Exception):
         初始化业务错误
         
         Args:
-            biz_code: 业务状态码
+            biz_code: 业务状态码 (int or BizCode Enum)
             http_code: HTTP状态码（可选，不提供则自动推断）
             details: 错误详情
             error: 原始异常对象
         """
-        self.biz_code = biz_code
-        self.http_code = http_code or get_http_status(biz_code)
+        self.raw_biz_code = biz_code
+        self.biz_code = biz_code.code if isinstance(biz_code, BizCode) else biz_code
+        self.http_code = http_code or get_http_status(self.raw_biz_code)
         self.details = details
         self.error = error
-        self.message = get_message(biz_code)
+        self.message = get_message(self.raw_biz_code)
         
         super().__init__(self.message)
     
@@ -65,13 +65,13 @@ class BusinessError(Exception):
         """转换为JSON响应"""
         return error_response(
             http_status=self.http_code,
-            biz_code=self.biz_code,
+            biz_code=self.raw_biz_code,
             errors=self.details
         )
 
 
 def success(
-    biz_code: int = 2000,
+    biz_code: Union[int, BizCode] = BizCode.OK,
     data: Optional[Any] = None,
     http_status: Optional[int] = None
 ) -> JSONResponse:
@@ -79,7 +79,7 @@ def success(
     成功响应
     
     Args:
-        biz_code: 业务状态码，默认2000（请求成功）
+        biz_code: 业务状态码，默认BizCode.OK
         data: 响应数据
         http_status: HTTP状态码，不提供则根据biz_code自动推断
         
@@ -110,7 +110,7 @@ def success(
 
 def error_response(
     http_status: int,
-    biz_code: int,
+    biz_code: Union[int, BizCode],
     errors: Optional[Any] = None
 ) -> JSONResponse:
     """
@@ -124,8 +124,10 @@ def error_response(
     Returns:
         JSONResponse对象
     """
+    code_val = biz_code.code if isinstance(biz_code, BizCode) else biz_code
+
     response = ApiResponse(
-        code=biz_code,
+        code=code_val,
         message=get_message(biz_code),
         data=None,
         errors=errors,
@@ -144,10 +146,9 @@ def error_response(
     )
 
 
-
 # 业务错误工厂函数
 def new_business_error(
-    biz_code: int,
+    biz_code: Union[int, BizCode],
     http_code: Optional[int] = None,
     details: Optional[Any] = None,
     error: Optional[Exception] = None

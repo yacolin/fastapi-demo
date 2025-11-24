@@ -13,10 +13,7 @@ from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from utils import AuthService, ResponseService
-from utils.biz_code import (
-    INVALID_PWD, USER_NOT_FOUND, DB_CREATE,
-    ACCESS_TK_GEN, TK_INVALID, TK_USER_ID, ERR_INTERNAL
-)
+from utils.biz_code import BizCode
 from middlewares.jwt_middleware import get_current_user
 from configs import get_session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -89,27 +86,27 @@ async def login(payload: LoginInput, session: AsyncSession = Depends(get_session
         user = result.scalar_one_or_none()
         
         if not user:
-            return ResponseService.unauthorized("用户不存在", USER_NOT_FOUND)
+            return ResponseService.unauthorized("用户不存在", BizCode.USER_NOT_FOUND)
         
         # Verify password
         if not AuthService.verify_password(payload.password, user.password):
-            return ResponseService.unauthorized("密码错误", INVALID_PWD)
+            return ResponseService.unauthorized("密码错误", BizCode.INVALID_PWD)
         
         # Generate token pair
         try:
             tokens = AuthService.create_token_pair(user.id)
             return ResponseService.success(data=tokens)
         except Exception as e:
-            return ResponseService.internal_error("生成token失败", ACCESS_TK_GEN)
+            return ResponseService.internal_error("生成token失败", BizCode.ACCESS_TK_GEN)
         
     except SQLAlchemyError as e:
         import traceback
         traceback.print_exc()
-        return ResponseService.db_error("登录时发生数据库错误", ERR_INTERNAL)
+        return ResponseService.db_error("登录时发生数据库错误", BizCode.ERR_INTERNAL)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "登录时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "登录时发生未知错误"})
 
 
 @router.post("/register", status_code=status.HTTP_200_OK)
@@ -128,7 +125,7 @@ async def register(payload: RegisterInput, session: AsyncSession = Depends(get_s
         try:
             hashed_password = AuthService.hash_password(payload.password)
         except Exception as e:
-            return ResponseService.db_error("密码加密失败", DB_CREATE)
+            return ResponseService.db_error("密码加密失败", BizCode.DB_CREATE)
         
         # Create new user
         user = User(
@@ -149,12 +146,12 @@ async def register(payload: RegisterInput, session: AsyncSession = Depends(get_s
         await session.rollback()
         import traceback
         traceback.print_exc()
-        return ResponseService.db_error("注册失败", DB_CREATE)
+        return ResponseService.db_error("注册失败", BizCode.DB_CREATE)
     except Exception as e:
         await session.rollback()
         import traceback
         traceback.print_exc()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "注册时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "注册时发生未知错误"})
 
 
 @router.post("/refresh", status_code=status.HTTP_200_OK)
@@ -165,29 +162,29 @@ async def refresh(payload: RefreshInput, session: AsyncSession = Depends(get_ses
         claims = AuthService.validate_token(payload.refresh_token)
         
         if not claims:
-            return ResponseService.unauthorized("无效的refresh token", TK_INVALID)
+            return ResponseService.unauthorized("无效的refresh token", BizCode.TK_INVALID)
         
         # Extract user_id from claims
         user_id = claims.get("user_id")
         if not user_id:
-            return ResponseService.unauthorized("refresh token缺少user_id", TK_USER_ID)
+            return ResponseService.unauthorized("refresh token缺少user_id", BizCode.TK_USER_ID)
         
         # Verify user still exists
         user = await session.get(User, user_id)
         if not user:
-            return ResponseService.unauthorized("用户不存在", USER_NOT_FOUND)
+            return ResponseService.unauthorized("用户不存在", BizCode.USER_NOT_FOUND)
         
         # Generate new access token
         try:
             new_access_token = AuthService.create_access_token(user_id)
             return ResponseService.success(data={"access_token": new_access_token})
         except Exception as e:
-            return ResponseService.internal_error("生成新的access token失败", ACCESS_TK_GEN)
+            return ResponseService.internal_error("生成新的access token失败", BizCode.ACCESS_TK_GEN)
         
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "刷新token时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "刷新token时发生未知错误"})
 
 
 @router.get("/me", status_code=status.HTTP_200_OK)
@@ -199,4 +196,4 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "获取用户信息时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "获取用户信息时发生未知错误"})

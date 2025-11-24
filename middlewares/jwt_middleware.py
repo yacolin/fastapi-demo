@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from configs import get_session
 from utils.restful import BusinessError
-from utils.biz_code import TK_NOT_FOUND, TK_FORMAT, TK_INVALID, TK_USER_ID, NOT_FOUND
+from utils.biz_code import BizCode
 from utils import AuthService
 
 
@@ -34,7 +34,7 @@ async def get_current_user(
     # Check if Authorization header exists
     if not authorization:
         raise BusinessError(
-            biz_code=TK_NOT_FOUND,
+            biz_code=BizCode.TK_NOT_FOUND,
             http_code=401,
             details={"message": "Authorization header not found"}
         )
@@ -43,7 +43,7 @@ async def get_current_user(
     parts = authorization.split(" ")
     if len(parts) != 2 or parts[0] != "Bearer":
         raise BusinessError(
-            biz_code=TK_FORMAT,
+            biz_code=BizCode.TK_FORMAT,
             http_code=401,
             details={"message": "Invalid token format. Expected 'Bearer <token>'"}
         )
@@ -51,10 +51,10 @@ async def get_current_user(
     token_str = parts[1]
     
     # Decode token
-    claims = AuthService.decode_token(token_str)
+    claims = AuthService.validate_token(token_str)
     if not claims:
         raise BusinessError(
-            biz_code=TK_INVALID,
+            biz_code=BizCode.TK_INVALID,
             http_code=401,
             details={"message": "Invalid or expired token"}
         )
@@ -63,7 +63,7 @@ async def get_current_user(
     user_id = claims.get("user_id")
     if not user_id:
         raise BusinessError(
-            biz_code=TK_USER_ID,
+            biz_code=BizCode.TK_USER_ID,
             http_code=401,
             details={"message": "Token missing user_id claim"}
         )
@@ -75,7 +75,7 @@ async def get_current_user(
     user = await session.get(User, user_id)
     if not user:
         raise BusinessError(
-            biz_code=NOT_FOUND,
+            biz_code=BizCode.NOT_FOUND,
             http_code=401,
             details={"message": "User not found"}
         )

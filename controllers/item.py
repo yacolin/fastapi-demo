@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from utils import ResponseService
-from utils.biz_code import ERR_INTERNAL
+from utils.biz_code import BizCode
 
 router = APIRouter(prefix="/items", tags=["items"])
 
@@ -27,7 +27,7 @@ def read_item(item_id: int, q: Union[str, None] = None):
     except ResponseService.Error:
         raise
     except Exception as e:
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "查询商品时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "查询商品时发生未知错误"})
 
 
 @router.put("/{item_id}")
@@ -43,4 +43,4 @@ def update_item(item_id: int, item: Item):
     except ResponseService.Error:
         raise
     except Exception as e:
-        raise ResponseService.Error(biz_code=ERR_INTERNAL, details={"message": "更新商品时发生未知错误"})
+        raise ResponseService.Error(biz_code=BizCode.ERR_INTERNAL, details={"message": "更新商品时发生未知错误"})
