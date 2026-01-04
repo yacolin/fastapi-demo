@@ -1,7 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 
 from sqlalchemy import BigInteger, String, TIMESTAMP, text, select, func
@@ -43,14 +43,49 @@ class AlbumBase(BaseModel):
 
 
 class AlbumCreate(AlbumBase):
-    pass
+    name: str = Field(..., min_length=1, max_length=255)
+    author: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = Field(None, max_length=1000)
+    liked: int = Field(default=0, ge=0, le=1000000)
+
+    @field_validator("name", mode="before")
+    def name_strip_nonempty(cls, v):
+        if v is None:
+            raise ValueError("name 不能为空或全为空格")
+        v = v.strip()
+        if not v:
+            raise ValueError("name 不能为空或全为空格")
+        return v
+
+    @field_validator("author", "description", mode="before")
+    def strip_optional_str(cls, v: Optional[str]):
+        if v is None:
+            return v
+        v = v.strip()
+        return v or None
 
 
 class AlbumUpdate(BaseModel):
-    name: Optional[str] = None
-    author: Optional[str] = None
-    description: Optional[str] = None
-    liked: Optional[int] = Field(default=None, ge=0)
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    author: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = Field(None, max_length=1000)
+    liked: Optional[int] = Field(default=None, ge=0, le=1000000)
+
+    @field_validator("name", mode="before")
+    def name_strip_nonempty(cls, v: Optional[str]):
+        if v is None:
+            return v
+        v = v.strip()
+        if not v:
+            raise ValueError("name 不能为空或全为空格")
+        return v
+
+    @field_validator("author", "description", mode="before")
+    def strip_optional_str(cls, v: Optional[str]):
+        if v is None:
+            return v
+        v = v.strip()
+        return v or None
 
 
 class AlbumOut(AlbumBase):
@@ -75,7 +110,7 @@ async def create_album(payload: AlbumCreate, session: AsyncSession = Depends(get
             name=payload.name,
             author=payload.author,
             description=payload.description,
-            liked=payload.liked or 0,
+            liked=payload.liked if payload.liked is not None else 0,
         )
         session.add(album)
         await session.commit()
@@ -95,24 +130,54 @@ async def create_album(payload: AlbumCreate, session: AsyncSession = Depends(get
 
 
 @router.get("")
-async def list_albums(limit: int = 100, offset: int = 0, session: AsyncSession = Depends(get_session)):
-    """List all albums with pagination"""
+async def list_albums(
+    limit: int = 100,
+    offset: int = 0,
+    name: Optional[str] = None,
+    author: Optional[str] = None,
+    min_liked: Optional[int] = None,
+    max_liked: Optional[int] = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """List all albums with pagination and optional filters"""
     try:
         if limit <= 0 or limit > 1000:
             raise ResponseService.Error(biz_code=BizCode.INVALID_PAGE, details={"message": "Limit必须在1到1000之间"})
         if offset < 0:
             raise ResponseService.Error(biz_code=BizCode.INVALID_PAGE, details={"message": "Offset必须为非负数"})
-        
-        # Get total count
+        if min_liked is not None and min_liked < 0:
+            return ResponseService.bad_request("min_liked 必须为非负数")
+        if max_liked is not None and max_liked < 0:
+            return ResponseService.bad_request("max_liked 必须为非负数")
+        if min_liked is not None and max_liked is not None and min_liked > max_liked:
+            return ResponseService.bad_request("min_liked 不能大于 max_liked")
+
+        # 动态构建过滤条件
+        conditions = []
+        if name:
+            conditions.append(Album.name.ilike(f"%{name}%"))
+        if author:
+            conditions.append(Album.author.ilike(f"%{author}%"))
+        if min_liked is not None:
+            conditions.append(Album.liked >= min_liked)
+        if max_liked is not None:
+            conditions.append(Album.liked <= max_liked)
+
+        # 统计总数（带过滤）
         count_stmt = select(func.count()).select_from(Album)
+        if conditions:
+            count_stmt = count_stmt.where(*conditions)
         count_result = await session.execute(count_stmt)
-        total = count_result.scalar()
-        
-        # Get paginated data
-        stmt = select(Album).limit(limit).offset(offset)
+        total = count_result.scalar() or 0
+
+        # 分页查询（带过滤）
+        stmt = select(Album)
+        if conditions:
+            stmt = stmt.where(*conditions)
+        stmt = stmt.limit(limit).offset(offset)
         result = await session.execute(stmt)
         albums = result.scalars().all()
-        
+
         albums_data = [AlbumOut.from_orm(album).model_dump(mode='json') for album in albums]
         return ResponseService.success(data={"items": albums_data, "total": total})
     except ResponseService.Error:
