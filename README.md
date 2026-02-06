@@ -57,6 +57,9 @@ fastapi-demo/
 │   ├── song.py          # Song CRUD endpoints
 │   ├── item.py          # Item CRUD endpoints
 │   └── team.py          # Team CRUD endpoints
+|—— models
+|—— schemas
+|—— services
 ├── utils/               # Shared utilities
 │   ├── __init__.py      # Utils exports
 │   ├── biz_code.py      # Business status codes

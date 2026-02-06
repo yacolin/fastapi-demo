@@ -1,11 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, status
-from pydantic import BaseModel, Field, field_validator
-from datetime import datetime
 
-from sqlalchemy import BigInteger, String, TIMESTAMP, text, select, func
-from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from utils import ResponseService
@@ -13,91 +9,11 @@ from utils.biz_code import BizCode
 from configs.db import get_session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-Base = declarative_base()
+from schemas.album import AlbumCreate, AlbumUpdate, AlbumOut
+from services import album as album_service
+
+
 router = APIRouter(prefix="/albums", tags=["albums"])
-
-
-# ORM model 对应你的表结构
-class Album(Base):
-    __tablename__ = "albums"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    author: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    liked: Mapped[int] = mapped_column(BigInteger, server_default=text("0"), nullable=False)
-    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
-        server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
-        nullable=False,
-    )
-
-
-# Pydantic schemas
-class AlbumBase(BaseModel):
-    name: Optional[str] = None
-    author: Optional[str] = None
-    description: Optional[str] = None
-    liked: Optional[int] = Field(default=0, ge=0)
-
-
-class AlbumCreate(AlbumBase):
-    name: str = Field(..., min_length=1, max_length=255)
-    author: Optional[str] = Field(None, max_length=255)
-    description: Optional[str] = Field(None, max_length=1000)
-    liked: int = Field(default=0, ge=0, le=1000000)
-
-    @field_validator("name", mode="before")
-    def name_strip_nonempty(cls, v):
-        if v is None:
-            raise ValueError("name 不能为空或全为空格")
-        v = v.strip()
-        if not v:
-            raise ValueError("name 不能为空或全为空格")
-        return v
-
-    @field_validator("author", "description", mode="before")
-    def strip_optional_str(cls, v: Optional[str]):
-        if v is None:
-            return v
-        v = v.strip()
-        return v or None
-
-
-class AlbumUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    author: Optional[str] = Field(None, max_length=255)
-    description: Optional[str] = Field(None, max_length=1000)
-    liked: Optional[int] = Field(default=None, ge=0, le=1000000)
-
-    @field_validator("name", mode="before")
-    def name_strip_nonempty(cls, v: Optional[str]):
-        if v is None:
-            return v
-        v = v.strip()
-        if not v:
-            raise ValueError("name 不能为空或全为空格")
-        return v
-
-    @field_validator("author", "description", mode="before")
-    def strip_optional_str(cls, v: Optional[str]):
-        if v is None:
-            return v
-        v = v.strip()
-        return v or None
-
-
-class AlbumOut(AlbumBase):
-    id: int
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            datetime: lambda v: int(v.timestamp()) if v else None
-        }
 
 
 # CRUD endpoints
@@ -106,17 +22,9 @@ class AlbumOut(AlbumBase):
 async def create_album(payload: AlbumCreate, session: AsyncSession = Depends(get_session)):
     """Create a new album"""
     try:
-        album = Album(
-            name=payload.name,
-            author=payload.author,
-            description=payload.description,
-            liked=payload.liked if payload.liked is not None else 0,
-        )
-        session.add(album)
-        await session.commit()
-        await session.refresh(album)
-        
-        album_data = AlbumOut.from_orm(album).model_dump(mode='json')
+        album = await album_service.create_album(session=session, payload=payload)
+
+        album_data = AlbumOut.model_validate(album).model_dump(mode='json')
         return ResponseService.created(data=album_data)
     except IntegrityError as e:
         await session.rollback()
@@ -152,33 +60,17 @@ async def list_albums(
         if min_liked is not None and max_liked is not None and min_liked > max_liked:
             return ResponseService.bad_request("min_liked 不能大于 max_liked")
 
-        # 动态构建过滤条件
-        conditions = []
-        if name:
-            conditions.append(Album.name.ilike(f"%{name}%"))
-        if author:
-            conditions.append(Album.author.ilike(f"%{author}%"))
-        if min_liked is not None:
-            conditions.append(Album.liked >= min_liked)
-        if max_liked is not None:
-            conditions.append(Album.liked <= max_liked)
+        albums, total = await album_service.list_albums(
+            session=session,
+            limit=limit,
+            offset=offset,
+            name=name,
+            author=author,
+            min_liked=min_liked,
+            max_liked=max_liked,
+        )
 
-        # 统计总数（带过滤）
-        count_stmt = select(func.count()).select_from(Album)
-        if conditions:
-            count_stmt = count_stmt.where(*conditions)
-        count_result = await session.execute(count_stmt)
-        total = count_result.scalar() or 0
-
-        # 分页查询（带过滤）
-        stmt = select(Album)
-        if conditions:
-            stmt = stmt.where(*conditions)
-        stmt = stmt.limit(limit).offset(offset)
-        result = await session.execute(stmt)
-        albums = result.scalars().all()
-
-        albums_data = [AlbumOut.from_orm(album).model_dump(mode='json') for album in albums]
+        albums_data = [AlbumOut.model_validate(album).model_dump(mode='json') for album in albums]
         return ResponseService.success(data={"items": albums_data, "total": total})
     except ResponseService.Error:
         raise
@@ -198,12 +90,12 @@ async def get_album(album_id: int, session: AsyncSession = Depends(get_session))
     try:
         if album_id <= 0:
             return ResponseService.bad_request("Invalid album_id: 必须为正数")
-        
-        album = await session.get(Album, album_id)
+
+        album = await album_service.get_album_by_id(session=session, album_id=album_id)
         if not album:
             return ResponseService.not_found(f"ID为{album_id}的专辑不存在", BizCode.NOT_FOUND)
         
-        album_data = AlbumOut.from_orm(album).model_dump(mode='json')
+        album_data = AlbumOut.model_validate(album).model_dump(mode='json')
         return ResponseService.success(data=album_data)
     except ResponseService.Error:
         raise
@@ -223,8 +115,8 @@ async def update_album(album_id: int, payload: AlbumUpdate, session: AsyncSessio
     try:
         if album_id <= 0:
             return ResponseService.bad_request("Invalid album_id: 必须为正数")
-        
-        album = await session.get(Album, album_id)
+
+        album = await album_service.get_album_by_id(session=session, album_id=album_id)
         if not album:
             return ResponseService.not_found(f"ID为{album_id}的专辑不存在", BizCode.NOT_FOUND)
 
@@ -232,20 +124,9 @@ async def update_album(album_id: int, payload: AlbumUpdate, session: AsyncSessio
         if all(v is None for v in [payload.name, payload.author, payload.description, payload.liked]):
             return ResponseService.bad_request("至少需要提供一个字段进行更新")
 
-        if payload.name is not None:
-            album.name = payload.name
-        if payload.author is not None:
-            album.author = payload.author
-        if payload.description is not None:
-            album.description = payload.description
-        if payload.liked is not None:
-            album.liked = payload.liked
+        album = await album_service.update_album(session=session, album=album, payload=payload)
 
-        session.add(album)
-        await session.commit()
-        await session.refresh(album)
-        
-        album_data = AlbumOut.from_orm(album).model_dump(mode='json')
+        album_data = AlbumOut.model_validate(album).model_dump(mode='json')
         return ResponseService.updated(data=album_data)
     except ResponseService.Error:
         raise
@@ -266,13 +147,12 @@ async def delete_album(album_id: int, session: AsyncSession = Depends(get_sessio
     try:
         if album_id <= 0:
             return ResponseService.bad_request("Invalid album_id: 必须为正数")
-        
-        album = await session.get(Album, album_id)
+
+        album = await album_service.get_album_by_id(session=session, album_id=album_id)
         if not album:
             return ResponseService.not_found(f"ID为{album_id}的专辑不存在", BizCode.NOT_FOUND)
         
-        await session.delete(album)
-        await session.commit()
+        await album_service.delete_album(session=session, album=album)
         return ResponseService.deleted()
     except ResponseService.Error:
         raise
